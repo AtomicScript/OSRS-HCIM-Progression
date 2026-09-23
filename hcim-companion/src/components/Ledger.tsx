@@ -19,6 +19,7 @@ export default function Ledger() {
   const [selected, setSelected] = useState(0);
   const [query, setQuery] = useState("");
   const [ready, setReady] = useState(false);
+  const [hideDone, setHideDone] = useState(true);
 
   useEffect(() => {
     const loaded = loadProgress();
@@ -37,14 +38,17 @@ export default function Ledger() {
   const doneGates = roadmap.filter((g) => isGateComplete(g, progress)).length;
 
   const visibleKeys = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return gate.keys;
-    return gate.keys.filter(
-      (k) =>
-        k.title.toLowerCase().includes(q) ||
-        (k.note ?? "").toLowerCase().includes(q),
+  const q = query.trim().toLowerCase();
+  return gate.keys.filter((k) => {
+    const status = keyStatus(progress, k.id);
+    if (hideDone && (status === "done" || status === "skipped")) return false;
+    if (!q) return true;
+    return (
+      k.title.toLowerCase().includes(q) ||
+      (k.note ?? "").toLowerCase().includes(q)
     );
-  }, [gate, query]);
+  });
+}, [gate, query, hideDone, progress]);
 
   const visibleLoops = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -144,6 +148,13 @@ export default function Ledger() {
                 Gate {selected + 1} {gate.title}
               </h1>
               <p className="text-sm text-[#6b5b45]">{gate.subtitle}</p>
+              <p className="text-xs text-[#8a7b64]">
+                {gate.keys.filter((k) => {
+                  const s = keyStatus(progress, k.id);
+                  return s !== "done" && s !== "skipped";
+                }).length}{" "}
+                / {gate.keys.length} keys left
+              </p>
             </div>
             <input
               value={query}
@@ -154,6 +165,14 @@ export default function Ledger() {
             <span className="rounded border border-[#8a2e24] px-2 py-1 text-[11px] font-semibold tracking-wide text-[#8a2e24]">
               STILL HARDCORE
             </span>
+            <label className="flex items-center gap-2 text-xs text-[#6b5b45]">
+            <input
+                type="checkbox"
+                checked={hideDone}
+                onChange={(e) => setHideDone(e.target.checked)}
+              />
+              Hide completed
+            </label>
           </header>
 
           <div className="flex gap-2 overflow-x-auto border-b border-[#ddd3c3] px-4 py-2 md:hidden">
@@ -180,10 +199,13 @@ export default function Ledger() {
               <ul className="divide-y divide-[#ddd3c3] rounded-lg border border-[#ddd3c3] bg-white/50">
                 {visibleKeys.map((key) => {
                   const status = keyStatus(progress, key.id);
+                  const finished = status === "done" || status === "skipped";
                   return (
                     <li
                       key={key.id}
-                      className="flex flex-wrap items-start gap-3 px-4 py-3"
+                      className={`flex flex-wrap items-start gap-3 px-4 py-3 ${
+                        finished ? "opacity-45" : ""
+                      }`}
                     >
                       <input
                         type="checkbox"
@@ -192,11 +214,20 @@ export default function Ledger() {
                         className="mt-1 size-4 accent-[#c4a45a]"
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-[#2a241c]">{key.title}</p>
+                        <p
+                          className={`font-medium text-[#2a241c] ${
+                            finished ? "line-through" : ""
+                          }`}
+                        >
+                          {key.title}
+                        </p>
                         {key.note ? (
-                          <p className="text-sm text-[#6b5b45]">{key.note}</p>
+                          <p className={`text-sm text-[#6b5b45] ${finished ? "line-through" : ""}`}>
+                            {key.note}
+                          </p>
                         ) : null}
                       </div>
+                      
                       <button
                         onClick={() =>
                           setKey(key.id, status === "skipped" ? "todo" : "skipped")
